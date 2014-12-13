@@ -1,0 +1,76 @@
+
+                          ezSpectrum v.3.0
+
+                              2010
+
+	          Vadim Mozhayskiy and Anna Krylov
+
+
+   		The program is available for download and 
+	     for online use at iopenshell.usc.edu/downloads/
+
+
+To compile type "make" (see Makefile) --
+static compilation, requires LAPACK, BLAS, and EXPAT libries.
+
+----------------------------------------------------------------------
+the manual: manual/manual.tex, manual/manual.pdf
+the script: make_xml.py
+atomic masses: atomicMasses.xml
+----------------------------------------------------------------------
+Distribution packages (see README files therein):
+
+ezSpectrum.distribute/ezSpectrum.v3.0.tar.gzip -- package for download
+  (includes executables, samples, make_xml.py script, manual, ... )
+ezSpectrum.distribute/ezSpectrum.v3.0.online.tar.gz -- online version
+  (includes both webpage and cgi-bin scripts; ready to install)
+----------------------------------------------------------------------
+The structure of the code:
+
+main.C
+ --> harmonic_pes/harmonic_pes_main.* 
+       -->harmonic_pes/parallel_approximation.*
+            --> harmonic_pes/franck_condon.*
+       -->harmonic_pes/dushinsky.*
+
+----------------------------------------------------------------------
+Main classes (see comments in each file):
+
+MolState -- geometry, normal modes, frequensies etc. of the electonic state
+molecular_prop/molstate.h
+  -->Atom -- name and coordinates of the atom
+     molecular_prop/atom.h  
+  -->NormalMode -- normal modes vector and frequency
+     molecular_prop/normalmode.h  
+
+Spectrum -- spectrum in the harmonic approximation
+molecular_prop/spectrum.h
+  --> SpectralPoint -- one point of the spectrum
+      molecular_prop/spectralpoint.h
+        --> VibronicState -- vibronic state
+	    molecular_prop/vibronic_state.h
+
+KMatrix -- matrix math & LAPACK wrapers
+matrix_math/kmatrix.h
+
+simpleXMLparser -- parser for .xml input files 
+molecular_prop/simple_xml_parser.C
+
+----------------------------------------------------------------------
+Additional funcions (see comments in each file):
+
+harmonic_pes/vibrational_indexing.h 
+  enumerateVibrStates() -- get next vibrational index
+  convVibrState2Index()
+  convIndex2VibrState()
+
+basic_methods/mathutil.* -- Factorial, Combination, etc.
+
+basic_methods/genutil.* -- misc functions
+
+----------------------------------------------------------------------
+
+physical constants: basic_methods/constants.h
+
+----------------------------------------------------------------------
+
