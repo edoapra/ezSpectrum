@@ -10,6 +10,7 @@ ACES II (versions 0.3 [old] and 2.5.0 [new])
 Molpro
 GAMESS (linear molecules are not supported)
 Gaussian (we can not guarantee it works, since we are not allowed to touch it)
+NWChem
 
 Script requires a set of ab initio outputs with frequency jobs in
 the optimized geometries. First file in the argument's list is
@@ -57,14 +58,16 @@ def main(xml_filename, ai_filenames, run_type):
                 input_type="gamess"
             if (Line.find('RESTRICTED RIGHTS')>=0) and (input_type==""):
                 input_type="other"
+            if (Line.find('Northwest Computational')>=0) and (input_type==""):
+                input_type="nwchem"
 
             Line=StateF.readline()
         if (input_type==""):
             if run_type!="web":
-                print "Error: File \""+FileName+"\" has an unknown format. Q-Chem, Molpro, ACES II, GAMESS, or Gaussian frequency jobs are supported"
+                print "Error: File \""+FileName+"\" has an unknown format. Q-Chem, Molpro, ACES II, GAMESS, Gaussian or NWChem frequency jobs are supported"
                 sys.exit(2)
             else:
-                return "Error: File \""+FileName+"\" has an unknown format. Q-Chem, Molpro, ACES II, GAMESS, or Gaussian frequency jobs are supported"
+                return "Error: File \""+FileName+"\" has an unknown format. Q-Chem, Molpro, ACES II, GAMESS, Gaussian or NWChem frequency jobs are supported"
         
         StateF.close
 
@@ -359,6 +362,99 @@ def main(xml_filename, ai_filenames, run_type):
             # END GAMESS
             # ================================================================================
 
+        if (input_type=="nwchem"):
+            normal_coordinates=[]
+            n_normal_modes=0
+            canreadfreq='false'
+            firstfreq=5
+            i0=firstfreq
+            
+            Line=StateF.readline()
+            print "geomislo",ifGeometryIsLoaded
+            while Line:
+                if (Line.find('Output coordinates in angstroms (scale by  1.889725989 to convert to a.u.)')>=0) and (ifGeometryIsLoaded=='false'):
+                    StateF.readline()
+                    StateF.readline()
+                    StateF.readline()
+                    Line=StateF.readline()
+                    while Line.find('Atomic Mass') == -1:
+                        NAtoms+=1
+                        print "nat ",NAtoms,"Line ",Line
+                        Geometry=Geometry+"      "+Line[5:8]+Line[35:]
+                        atoms_list+=Line[5:8]
+                        Line=StateF.readline()
+                    ifGeometryIsLoaded='true'
+                    NAtoms-=1
+                    print "ok so far geom: nat",NAtoms,"\n"
+
+                    for i in range(NAtoms):
+                        normal_coordinates.append([])
+                
+                if (Line.find('Projected Frequencies')>=0):
+                    canreadfreq='true'
+                if (Line.find('P.Frequency') >= 0) and (canreadfreq=='true') and (ifFrequenciesLoaded=='false'):
+                    print " freq line ",Line
+                    Frequencies+=Line.replace('P.Frequency','')
+                    NLinesWithFrequencies+=1
+                    StateF.readline()
+                    print "nlfreq ",NLinesWithFrequencies
+                    print "\n before loop on norm modes, NAtoms=",NAtoms,"\n"
+                    for i in range(NAtoms):
+                        print "\n reading norm modes:\n"
+                        LineX=StateF.readline()
+                        LineY=StateF.readline()
+                        LineZ=StateF.readline()
+                        print "LineZ ",LineZ
+                        # analyse the length of the line 12+12*j:
+                        nm_per_line= (len(LineX)-12)/12
+                        print "nm_per_lines ",i0,nm_per_line
+                        n_normal_modes+=nm_per_line
+                        print "n_normal_modes",n_normal_modes
+#                        for j in range(firstfreq,nm_per_line):
+                        for j in range(i0,nm_per_line):
+                            normal_coordinates[i].append( LineX[ 12+12*j : 12+12*(j+1) ]+LineY[ 12+12*j : 12+12*(j+1) ]+LineZ[ 12+12*j : 12+12*(j+1)] )
+
+                    i0=0
+                    n_normal_modes/=NAtoms # repeated "NAtoms"-times
+                    print "final nmodes ",n_normal_modes
+                    
+
+                    if Line.find('Projected Derivative') >= 0:
+                        ifFrequenciesLoaded='true'
+                        ifNormalModesLoaded='true'
+                        print "EOM for Freq"
+                Line=StateF.readline()
+
+            # now create normal modes in q-chem format:
+            printed_normal_modes=0
+            for j in range( len(normal_coordinates[0])/3 ):
+                for i in range(NAtoms):
+                    NormalModes=NormalModes+normal_coordinates[i][j*3]+"   "+normal_coordinates[i][j*3+1]+"   "+normal_coordinates[i][j*3+2]+'\n'
+                printed_normal_modes+=3
+                NormalModes+='\n'
+
+            # add the reminder of 3
+            if ( (len(normal_coordinates[0]) % 3) > 0 ):
+                for i in range(NAtoms):
+                    for j in range( len(normal_coordinates[0]) % 3 ):
+                        NormalModes=NormalModes+normal_coordinates[i][printed_normal_modes+j]+"   "
+                    NormalModes+='\n'
+                NormalModes+='\n'
+            # remove first 6 frequencies:
+            Frequencies_set=Frequencies.split()
+            Frequencies_set=Frequencies_set[firstfreq:]
+            Frequencies = " ".join(["%s" % (f) for f in Frequencies_set])
+            Frequencies = "       " + Frequencies + "\n"
+#checkejchchchc
+            if (n_normal_modes==(3*NAtoms-5)):
+                ifLinear="true"
+
+            if_normal_modes_weighted="true"
+
+            geometry_units="angstr"
+
+            # END NWCHEM
+
         if (input_type=="other"):
             ifAtomsLoaded='false'
             
@@ -401,7 +497,7 @@ def main(xml_filename, ai_filenames, run_type):
             if_normal_modes_weighted="true"
             geometry_units="angstr"
 
-            # END OTHER
+            # END other
             # ================================================================================
 
         # Write the state to the xml file
