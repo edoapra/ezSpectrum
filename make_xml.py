@@ -372,19 +372,21 @@ def main(xml_filename, ai_filenames, run_type):
             Line=StateF.readline()
             print "geomislo",ifGeometryIsLoaded
             while Line:
-                if (Line.find('Output coordinates in angstroms (scale by  1.889725989 to convert to a.u.)')>=0) and (ifGeometryIsLoaded=='false'):
+                if (Line.find('Nuclear Hessian passed symmetry test')>=0) and (ifGeometryIsLoaded=='false'):
+                    StateF.readline()
+                    StateF.readline()
+                    StateF.readline()
                     StateF.readline()
                     StateF.readline()
                     StateF.readline()
                     Line=StateF.readline()
-                    while Line.find('Atomic Mass') == -1:
+                    while Line.find('----') == -1:
                         NAtoms+=1
-                        print "nat ",NAtoms,"Line ",Line
-                        Geometry=Geometry+"      "+Line[5:8]+Line[35:]
-                        atoms_list+=Line[5:8]
+                        Geometry=Geometry+"      "+Line[4:7]+Line[15:59]
+                        atoms_list+=Line[4:7]
                         Line=StateF.readline()
                     ifGeometryIsLoaded='true'
-                    NAtoms-=1
+#                    NAtoms-=1
                     print "ok so far geom: nat",NAtoms,"\n"
 
                     for i in range(NAtoms):
@@ -451,7 +453,7 @@ def main(xml_filename, ai_filenames, run_type):
 
             if_normal_modes_weighted="true"
 
-            geometry_units="angstr"
+            geometry_units="au"
 
             # END NWCHEM
 
