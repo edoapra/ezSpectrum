@@ -307,16 +307,6 @@ def main(xml_filename, ai_filenames, run_type):
                 if (Line.find(' IR INTENSITY:')>=0) and (ifNormalModesLoaded=='false'):
                     Line=StateF.readline()
                    
-                    for i in range(NAtoms):
-                        LineX=StateF.readline()
-                        LineY=StateF.readline()
-                        LineZ=StateF.readline()
-                        
-                        # analyse the length of the line 20+12*j:
-                        nm_per_line= (len(LineX)-20)/12
-                        
-                        for j in range(nm_per_line):
-                            normal_coordinates[i].append( LineX[ 20+12*j : 20+12*(j+1) ]+LineY[ 20+12*j : 20+12*(j+1) ]+LineZ[ 20+12*j : 20+12*(j+1)] )
 
                     n_normal_modes/=NAtoms # repeated "NAtoms"-times
 
@@ -364,13 +354,11 @@ def main(xml_filename, ai_filenames, run_type):
 
         if (input_type=="nwchem"):
             normal_coordinates=[]
+            normal_coordinates1=[]
             n_normal_modes=0
             canreadfreq='false'
-            firstfreq=5
-            i0=firstfreq
             
             Line=StateF.readline()
-            print "geomislo",ifGeometryIsLoaded
             while Line:
                 if (Line.find('Nuclear Hessian passed symmetry test')>=0) and (ifGeometryIsLoaded=='false'):
                     StateF.readline()
@@ -382,72 +370,74 @@ def main(xml_filename, ai_filenames, run_type):
                     Line=StateF.readline()
                     while Line.find('----') == -1:
                         NAtoms+=1
-                        Geometry=Geometry+"      "+Line[4:7]+Line[15:59]
+                        Geometry=Geometry+"      "+Line[4:7]+Line[15:59] + "\n" 
                         atoms_list+=Line[4:7]
                         Line=StateF.readline()
                     ifGeometryIsLoaded='true'
-#                    NAtoms-=1
-                    print "ok so far geom: nat",NAtoms,"\n"
-
+# fortran D replaced with e
+                    Geometry=Geometry.replace("D","e")
+                    # create an empty list of coordinates for every atom in form "X_nm1 Y_nm1 Z_nm1 X_nm2 Y_nm2 Z_nm2 X_nm3..."
                     for i in range(NAtoms):
                         normal_coordinates.append([])
                 
                 if (Line.find('Projected Frequencies')>=0):
                     canreadfreq='true'
                 if (Line.find('P.Frequency') >= 0) and (canreadfreq=='true') and (ifFrequenciesLoaded=='false'):
-                    print " freq line ",Line
                     Frequencies+=Line.replace('P.Frequency','')
                     NLinesWithFrequencies+=1
                     StateF.readline()
-                    print "nlfreq ",NLinesWithFrequencies
-                    print "\n before loop on norm modes, NAtoms=",NAtoms,"\n"
                     for i in range(NAtoms):
-                        print "\n reading norm modes:\n"
                         LineX=StateF.readline()
                         LineY=StateF.readline()
                         LineZ=StateF.readline()
-                        print "LineZ ",LineZ
                         # analyse the length of the line 12+12*j:
                         nm_per_line= (len(LineX)-12)/12
-                        print "nm_per_lines ",i0,nm_per_line
                         n_normal_modes+=nm_per_line
-                        print "n_normal_modes",n_normal_modes
-#                        for j in range(firstfreq,nm_per_line):
-                        for j in range(i0,nm_per_line):
+                        for j in range(nm_per_line):
                             normal_coordinates[i].append( LineX[ 12+12*j : 12+12*(j+1) ]+LineY[ 12+12*j : 12+12*(j+1) ]+LineZ[ 12+12*j : 12+12*(j+1)] )
 
-                    i0=0
-                    n_normal_modes/=NAtoms # repeated "NAtoms"-times
-                    print "final nmodes ",n_normal_modes
                     
 
                     if Line.find('Projected Derivative') >= 0:
                         ifFrequenciesLoaded='true'
                         ifNormalModesLoaded='true'
-                        print "EOM for Freq"
                 Line=StateF.readline()
 
+            n_normal_modes/=NAtoms # repeated "NAtoms"-times
+            # remove zero value frequencies:
+            Frequencies_set=Frequencies.split()
+            for i in range(0,6):
+                if (float(Frequencies_set[i]) <=0.01) :
+                    firstfreq=i+1
+            Frequencies_set=Frequencies_set[firstfreq:]
+            Frequencies = " ".join(["%s" % (f) for f in Frequencies_set])
+            Frequencies = "       " + Frequencies + "\n"
+# redefine normal modes
+            n_normal_modes=3*NAtoms-firstfreq
             # now create normal modes in q-chem format:
             printed_normal_modes=0
-            for j in range( len(normal_coordinates[0])/3 ):
+#cut normcoord
+            for i in range(NAtoms):
+                normal_coordinates1.append([])
+            for i in range(NAtoms):
+                for j in range(n_normal_modes):
+                    normal_coordinates1[i].append([])
+            for i in range(NAtoms):
+                for j in range(n_normal_modes):
+                    normal_coordinates1[i][j]=normal_coordinates[i][j+firstfreq]
+            for j in range( len(normal_coordinates1[0])/3 ):
                 for i in range(NAtoms):
-                    NormalModes=NormalModes+normal_coordinates[i][j*3]+"   "+normal_coordinates[i][j*3+1]+"   "+normal_coordinates[i][j*3+2]+'\n'
+                    NormalModes=NormalModes+normal_coordinates1[i][j*3]+"   "+normal_coordinates1[i][j*3+1]+"   "+normal_coordinates1[i][j*3+2]+'\n'
                 printed_normal_modes+=3
                 NormalModes+='\n'
 
             # add the reminder of 3
-            if ( (len(normal_coordinates[0]) % 3) > 0 ):
+            if ( (len(normal_coordinates1[0]) % 3) > 0 ):
                 for i in range(NAtoms):
-                    for j in range( len(normal_coordinates[0]) % 3 ):
-                        NormalModes=NormalModes+normal_coordinates[i][printed_normal_modes+j]+"   "
+                    for j in range( len(normal_coordinates1[0]) % 3 ):
+                        NormalModes=NormalModes+normal_coordinates1[i][printed_normal_modes+j]+"   "
                     NormalModes+='\n'
                 NormalModes+='\n'
-            # remove first 6 frequencies:
-            Frequencies_set=Frequencies.split()
-            Frequencies_set=Frequencies_set[firstfreq:]
-            Frequencies = " ".join(["%s" % (f) for f in Frequencies_set])
-            Frequencies = "       " + Frequencies + "\n"
-#checkejchchchc
             if (n_normal_modes==(3*NAtoms-5)):
                 ifLinear="true"
 
